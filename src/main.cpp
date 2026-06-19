@@ -363,13 +363,22 @@ function turnRight90()
 
 void handleTurnRight90()
 {
-    server.send(200, "text/plain", "Turning...");
     startTurnRight90();
+    server.send(200, "text/plain", "Turning...");
 }
 void handleData()
 {
+    // Read raw values directly from the encoders
+    switchI2CBus(D1, D2);
+    uint16_t raw1 = readRawAngle();
+
+    switchI2CBus(D3, D4);
+    uint16_t raw2 = readRawAngle();
+
     String json = "{";
 
+    json += "\"raw1\":" + String(raw1) + ",";
+    json += "\"raw2\":" + String(raw2) + ",";
     json += "\"deg1\":" + String(left.lastAngle, 2) + ",";
     json += "\"deg2\":" + String(right.lastAngle, 2) + ",";
 
@@ -380,32 +389,6 @@ void handleData()
 
     server.send(200, "application/json", json);
 }
-// void handleData()
-// {
-//     // Encoder 1
-//     switchI2CBus(D1, D2);
-
-//     uint16_t raw1 = readRawAngle();
-//     float deg1 = raw1 * 360.0 / 4096.0;
-//     updateEncoder(right, deg1);
-
-//     // Encoder 2
-//     switchI2CBus(D3, D4);
-
-//     uint16_t raw2 = readRawAngle();
-//     float deg2 = raw2 * 360.0 / 4096.0;
-//     updateEncoder(left, deg2);
-
-//     String json = "{";
-//     json += "\"raw1\":" + String(raw1) + ",";
-//     json += "\"deg1\":" + String(deg1, 2) + ",";
-//     json += "\"raw2\":" + String(raw2) + ",";
-//     json += "\"deg2\":" + String(deg2, 2);
-//     json += "}";
-
-//     server.send(200, "application/json", json);
-// }
-
 // ======================================================
 // Setup
 // ======================================================
