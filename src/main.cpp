@@ -65,8 +65,6 @@ RobotState robotState = IDLE;
 
 float targetLeft = 0;
 float targetRight = 0;
-unsigned long turnStartTime = 0;
-const unsigned long TURN_TIMEOUT = 5000; // 5 seconds max turn time
 void initDrive()
 {
     servo_l.attach(12);
@@ -91,8 +89,6 @@ void startTurnRight90()
 
     targetLeft = left.totalAngle + TURN_90;
     targetRight = right.totalAngle - TURN_90;
-    turnStartTime = millis();
-
     robotState = TURNING_RIGHT;
 }
 
@@ -106,14 +102,6 @@ void updateRobot()
 
     case TURNING_RIGHT:
     {
-        // Timeout safety: stop after TURN_TIMEOUT ms even if encoder fails
-        if (millis() - turnStartTime > TURN_TIMEOUT)
-        {
-            stopMotors();
-            robotState = IDLE;
-            break;
-        }
-
         // Use only LEFT encoder to control both wheels (right encoder not working)
         if (left.totalAngle < targetLeft)
         {
@@ -131,38 +119,6 @@ void updateRobot()
     }
     }
 }
-void turnRight90()
-{
-    float startLeft = left.totalAngle;
-
-    float targetLeft = startLeft + TURN_90;
-
-    unsigned long startTime = millis();
-
-    while (true)
-    {
-        readEncoders();
-
-        // Timeout safety
-        if (millis() - startTime > TURN_TIMEOUT)
-            break;
-
-        // Use only LEFT encoder to control both wheels
-        if (left.totalAngle < targetLeft)
-        {
-            setSpeed(44, -44);
-        }
-        else
-        {
-            break;
-        }
-
-        yield();
-    }
-
-    stopMotors();
-}
-
 void resetEncoders()
 {
     left.totalAngle = 0;
@@ -183,18 +139,17 @@ void switchI2CBus(int sda, int scl)
 }
 void readEncoders()
 {
-
     // Left encoder (D3/D4)
     switchI2CBus(D3, D4);
     uint16_t raw1 = readRawAngle();
-    float deg2 = raw1 * 360.0f / 4096.0f;
-    updateEncoder(left, deg2);
+    float degL = raw1 * 360.0f / 4096.0f;
+    updateEncoder(left, degL);
 
     // Right encoder (D1/D2)
     switchI2CBus(D1, D2);
     uint16_t raw2 = readRawAngle();
-    float deg1 = raw2 * 360.0f / 4096.0f;
-    updateEncoder(right, deg1);
+    float degR = raw2 * 360.0f / 4096.0f;
+    updateEncoder(right, degR);
 }
 
 void updateEncoder(Encoder &enc, float currentAngle)
@@ -401,6 +356,12 @@ button.success:hover{
   Stop Motors
 </button>
 
+<!-- Turn Status -->
+<div style="margin:10px 0;font-size:16px;color:#aaa;">
+  Left Total: <span id="total1" style="color:#00ff88;font-weight:bold;">0.00</span>°
+  → Target: <span id="targetDisplay" style="color:#ffcc00;font-weight:bold;">--</span>°
+</div>
+
 <hr>
 
 <!-- Calibration Section -->
@@ -418,9 +379,8 @@ button.success:hover{
   </div>
   <div style="margin-top:12px;">
     <button class="success" onclick="setTurnValue()">Set Value</button>
-    <button onclick="testTurnValue()" id="btnTest">Test Turn</button>
   </div>
-  <div id="calResult" class="result-box info">Ready. Set a value and press "Test Turn".</div>
+  <div id="calResult" class="result-box info">Enter a value above and press "Set Value".</div>
 </div>
 
 </div>
@@ -440,6 +400,10 @@ document.getElementById("total1").innerHTML = d.total1.toFixed(2);
 document.getElementById("deg2").innerHTML = d.deg2.toFixed(2)+"°";
 document.getElementById("raw2").innerHTML = d.raw2;
 document.getElementById("total2").innerHTML = d.total2.toFixed(2);
+// Turn target status
+if (d.targetLeft !== undefined && d.targetLeft > 0) {
+  document.getElementById("targetDisplay").innerHTML = d.targetLeft.toFixed(2);
+}
 });
 }
 
@@ -477,41 +441,6 @@ function setTurnValue(){
   fetch("/setTurnValue?val=" + val).then(function(){
     document.getElementById("calResult").className = "result-box ok";
     document.getElementById("calResult").innerHTML = "✅ TURN_90 set to " + val + "°";
-  });
-}
-
-// ---- Test Turn ----
-function testTurnValue(){
-  var val = document.getElementById("turnInput").value;
-  var btn = document.getElementById("btnTest");
-  btn.disabled = true;
-  btn.innerHTML = "Testing...";
-
-  // First reset encoders and state to get a clean measurement
-  fetch("/resetEncoders").then(function(){
-    // Set the value
-    return fetch("/setTurnValue?val=" + val);
-  }).then(function(){
-    // Execute the turn
-    return fetch("/turnRight90");
-  }).then(function(){
-    // Wait for turn to finish, then read results
-    // Increase timeout if your robot turns slowly
-    setTimeout(function(){
-      fetch("/data").then(r=>r.json()).then(d=>{
-        var leftTotal = d.total1;
-        var rightTotal = d.total2;
-        var leftDeg = Math.abs(leftTotal);
-        var rightDeg = Math.abs(rightTotal);
-        var avg = ((leftDeg + rightDeg) / 2).toFixed(1);
-        document.getElementById("calResult").className = "result-box warn";
-        document.getElementById("calResult").innerHTML =
-          "📊 Test result: Left=" + leftDeg.toFixed(1) + "°  Right=" + rightDeg.toFixed(1) + "°  Avg=" + avg + "°<br>" +
-          "If robot turned exactly 90°, this is your TURN_90 value!";
-        btn.disabled = false;
-        btn.innerHTML = "Test Turn";
-      });
-    }, 8000);
   });
 }
 
@@ -567,26 +496,26 @@ void handleStopMotors()
 }
 void handleData()
 {
-    // Read raw values and update encoder structs for accurate readings
+    // Read raw values for display — do NOT update encoder tracking here!
+    // Only readEncoders() in loop() should update encoders.
     switchI2CBus(D3, D4);
     uint16_t raw1 = readRawAngle();
     float degL = raw1 * 360.0f / 4096.0f;
-    updateEncoder(left, degL);
 
     switchI2CBus(D1, D2);
     uint16_t raw2 = readRawAngle();
     float degR = raw2 * 360.0f / 4096.0f;
-    updateEncoder(right, degR);
 
     String json = "{";
 
     json += "\"raw2\":" + String(raw2) + ",";
     json += "\"raw1\":" + String(raw1) + ",";
-    json += "\"deg1\":" + String(left.lastAngle, 2) + ",";
-    json += "\"deg2\":" + String(right.lastAngle, 2) + ",";
+    json += "\"deg1\":" + String(degL, 2) + ",";
+    json += "\"deg2\":" + String(degR, 2) + ",";
 
     json += "\"total1\":" + String(left.totalAngle, 2) + ",";
-    json += "\"total2\":" + String(right.totalAngle, 2);
+    json += "\"total2\":" + String(right.totalAngle, 2) + ",";
+    json += "\"targetLeft\":" + String(targetLeft, 2);
 
     json += "}";
 
