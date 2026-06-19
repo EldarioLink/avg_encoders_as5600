@@ -1,0 +1,12 @@
+i have mini robot - there are 2 wheels the have MG996R and AS5600 magnit encoders. 
+
+My board is esp8266 ( with WIFI ) 
+
+MG996R right wheel - D5
+AS5600 rigth wheel - D1 and D2
+
+
+MG996R left wheel - D6
+AS5600 left wheel - D7 and D8 pins
+
+pls make code where will be web server ( via wifi AP point ) - and on web will be button start, stop, turn right, turn left, backward - 180 degrees, backward - 360 degrees.
