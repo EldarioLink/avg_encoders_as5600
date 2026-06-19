@@ -180,17 +180,18 @@ void switchI2CBus(int sda, int scl)
 }
 void readEncoders()
 {
-    // Right encoder (D1/D2)
-    switchI2CBus(D1, D2);
-    uint16_t raw1 = readRawAngle();
-    float deg1 = raw1 * 360.0f / 4096.0f;
-    updateEncoder(right, deg1);
 
     // Left encoder (D3/D4)
     switchI2CBus(D3, D4);
-    uint16_t raw2 = readRawAngle();
-    float deg2 = raw2 * 360.0f / 4096.0f;
+    uint16_t raw1 = readRawAngle();
+    float deg2 = raw1 * 360.0f / 4096.0f;
     updateEncoder(left, deg2);
+
+    // Right encoder (D1/D2)
+    switchI2CBus(D1, D2);
+    uint16_t raw2 = readRawAngle();
+    float deg1 = raw2 * 360.0f / 4096.0f;
+    updateEncoder(right, deg1);
 }
 
 void updateEncoder(Encoder &enc, float currentAngle)
@@ -334,10 +335,10 @@ fetch("/data")
 .then(d=>{
 
 document.getElementById("deg1").innerHTML=d.deg1.toFixed(2)+"°";
-document.getElementById("raw1").innerHTML=d.raw1;
+document.getElementById("raw2").innerHTML=d.raw2;
 
 document.getElementById("deg2").innerHTML=d.deg2.toFixed(2)+"°";
-document.getElementById("raw2").innerHTML=d.raw2;
+document.getElementById("raw1").innerHTML=d.raw1;
 
 });
 
@@ -370,15 +371,15 @@ void handleData()
 {
     // Read raw values directly from the encoders
     switchI2CBus(D1, D2);
-    uint16_t raw1 = readRawAngle();
+    uint16_t raw2 = readRawAngle();
 
     switchI2CBus(D3, D4);
-    uint16_t raw2 = readRawAngle();
+    uint16_t raw1 = readRawAngle();
 
     String json = "{";
 
-    json += "\"raw1\":" + String(raw1) + ",";
     json += "\"raw2\":" + String(raw2) + ",";
+    json += "\"raw1\":" + String(raw1) + ",";
     json += "\"deg1\":" + String(left.lastAngle, 2) + ",";
     json += "\"deg2\":" + String(right.lastAngle, 2) + ",";
 
